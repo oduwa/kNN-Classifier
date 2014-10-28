@@ -1,0 +1,9 @@
+@RELATION pitcher
+
+   @ATTRIBUTE width  NUMERIC
+   @ATTRIBUTE length NUMERIC
+   @ATTRIBUTE class  {N-truncata, N-raja}
+   
+   @DATA
+      5.0, 13.0, N-raja
+	  6.0, 14.0, N-truncata

@@ -1,0 +1,11 @@
+@RELATION Arsenal
+
+@ATTRIBUTE Szczesny  {0,1}
+@ATTRIBUTE Sanchez   {0,1}
+@ATTRIBUTE Walcott  {0,1}
+@ATTRIBUTE class    {Loss,Draw,Win}
+@DATA
+
+1, 0,  0,?
+0, 1,  1,?
+0, 0, 1,?
