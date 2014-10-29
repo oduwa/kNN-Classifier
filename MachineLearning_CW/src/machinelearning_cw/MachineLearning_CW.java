@@ -27,14 +27,17 @@ public class MachineLearning_CW {
         BasicKNN basicKNN = new BasicKNN();
         basicKNN.buildClassifier(train);
         basicKNN.classifyInstance(test.firstInstance());
-        */
+         */
         
+        ///*
         //System.out.println(train + "\n\n\n");
         KNN knn = new KNN();
         //knn.setAutoDetermineK(true);
+        knn.setUseWeightedVoting(true);
         knn.buildClassifier(train);
         //knn.testEstimateK();
-        System.out.println("DECISION: " + knn.classifyInstance(test.get(1)));
+        System.out.println("DECISION: " + knn.classifyInstance(test.get(0)));
+        //*/
     }
     
 }

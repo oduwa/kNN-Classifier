@@ -45,14 +45,15 @@ public class BasicKNN implements Classifier{
          */
         ArrayList<HashMap<String, Object>> table = this.buildDistanceTable(trainingData, distances);
 
-        
+        /*
+        this.sortDistanceTable(table, "distance");
         for(int i = 0; i < distances.length; i++){
             HashMap<String, Object> row = table.get(i);
             Instance inst = trainingData.get(i);
             System.out.println(row.get("distance"));
         }
         System.out.println("");
-        //k=5;
+        */
         
         
         //k=5;
@@ -67,17 +68,19 @@ public class BasicKNN implements Classifier{
             /* Find the positions in the table of the ith closest neighbour */
             int[] closestRowIndices = this.findNthClosestNeighbour(table, i);
             
-            /* Keep track of distance ties */
-            for(int j = 0; j < closestRowIndices.length; j++) {
-                tieIndices.add(closestRowIndices[j]);
+            if (closestRowIndices.length > 0) {
+                /* Keep track of distance ties */
+                for (int j = 0; j < closestRowIndices.length; j++) {
+                    tieIndices.add(closestRowIndices[j]);
+                }
+
+                /* Break ties (by choosing winner at random) */
+                Random rand = new Random();
+                int matchingNeighbourPosition = tieIndices.get(rand.nextInt(tieIndices.size()));
+                HashMap<String, Object> matchingRow = table.get(matchingNeighbourPosition);
+                kClosestRows[i - 1] = matchingRow;
             }
-            
-            /* Break ties (by choosing winner at random) */
-            Random rand = new Random();
-            int matchingNeighbourPosition = tieIndices.get(rand.nextInt(tieIndices.size()));
-            HashMap<String, Object> matchingRow = table.get(matchingNeighbourPosition);
-            kClosestRows[i-1] = matchingRow;
-            //System.out.println("POS: " + matchingNeighbourPosition + " DIST: " + matchingRow);
+
         }
 
         /* 
@@ -147,7 +150,7 @@ public class BasicKNN implements Classifier{
      * array corresponds to the distance of the "instance" param from the
      * training data at that same position.
      */
-    private double[] findEuclideanDistances(Instances data, Instance instance){
+    protected double[] findEuclideanDistances(Instances data, Instance instance){
         /* Initialise array to hold euclidean distances */
         double[] distances = new double[data.numInstances()];
         
@@ -193,7 +196,7 @@ public class BasicKNN implements Classifier{
      * HashMap objects. Each item in the array list represents a row in the
      * table and each key-value pair in the HashMap represents a column
      */
-    private ArrayList<HashMap<String, Object>> buildDistanceTable(Instances data, double[] distances){
+    protected ArrayList<HashMap<String, Object>> buildDistanceTable(Instances data, double[] distances){
         /* Initialise table */
         ArrayList<HashMap<String, Object>> table = new ArrayList<HashMap<String, Object>>();
         
@@ -203,6 +206,7 @@ public class BasicKNN implements Classifier{
             HashMap<String, Object> row =  new HashMap<String, Object>();
             row.put("id", Integer.toHexString(eachInstance.hashCode()));
             row.put("distance", new  Double(distances[i]));
+            row.put("weight", new  Double(1/(1+distances[i])));
             table.add(row);
             i++;
         }
@@ -215,15 +219,19 @@ public class BasicKNN implements Classifier{
      * above the larger ones. 
      * 
      * This in turn ranks the table, making it easier to identify the nearest
-     * neighbours in terms of distance.
+     * neighbors in terms of distance.
      * 
      * @param table A distance table in the form of an ArrayList whose 
      * elements are HashMap objects with the keys "id" and "distance".
+     * @param sortParam The column of the table to sort by. Must be either 
+     * "distance" or "weight"
      * 
      */
-    private void sortDistanceTable(ArrayList<HashMap<String, Object>> table){
-        /* Sort hash map using anonymous comparator */
-        Collections.sort(table, new Comparator<HashMap<String, Object>>(){
+    protected void sortDistanceTable(ArrayList<HashMap<String, Object>> table, String sortParam){
+        
+        if(sortParam.equalsIgnoreCase("distance")){
+            /* Sort hash map in ascending using anonymous comparator */
+            Collections.sort(table, new Comparator<HashMap<String, Object>>(){
 
             @Override
             public int compare(HashMap<String, Object> o1, HashMap<String, Object> o2) {
@@ -239,12 +247,36 @@ public class BasicKNN implements Classifier{
             }
             
         });
+        }
+        else if(sortParam.equalsIgnoreCase("weight")){
+            /* Sort hash map in descending order using anonymous comparator */
+            Collections.sort(table, new Comparator<HashMap<String, Object>>(){
+
+            @Override
+            public int compare(HashMap<String, Object> o1, HashMap<String, Object> o2) {
+                if((Double) o1.get("weight") < (Double) o2.get("weight")){
+                    return 1;
+                }
+                else if((Double)o1.get("weight") > (Double)o2.get("weight")){
+                    return -1;
+                }
+                else{
+                    return 0;
+                }
+            }
+            
+        });
+        }
+        else{
+            // throw exception
+        }
+        
     }
     
     
     /**
      * 
-     * Find the positions in a distance table of the nth closest neighbour 
+     * Find the positions in a distance table of the nth closest neighbor 
      * where n is a whole number greater than zero.
      * 
      * @param table A distance table in the form of an ArrayList whose 
@@ -255,9 +287,9 @@ public class BasicKNN implements Classifier{
      * distances in the table. (The array has a length greater than 1 when
      * there exist ties in the distances in the table)
      */
-    private int[] findNthClosestNeighbour(ArrayList<HashMap<String, Object>> table, int n){
+    protected int[] findNthClosestNeighbour(ArrayList<HashMap<String, Object>> table, int n){
         int[] result = null;
-        sortDistanceTable(table);
+        sortDistanceTable(table, "distance");
         int count = 0;
         
         // Find first closest
@@ -328,7 +360,7 @@ public class BasicKNN implements Classifier{
      * @param list a list of values whose mode is to be found
      * @return mode value. ie value with highest frequency.
      */
-    private double mode(ArrayList<Double> list) {
+    protected double mode(ArrayList<Double> list) {
         int maxSoFar = 0;
         int maxIndex = 0;
         
@@ -354,7 +386,7 @@ public class BasicKNN implements Classifier{
      * @param array the array to be converted to an ArrayList.
      * @return an ArrayList representation of the input array.
      */
-    private ArrayList<Double> arrayToArrayList(double[] array){
+    protected ArrayList<Double> arrayToArrayList(double[] array){
         ArrayList<Double> list = new ArrayList<Double>(); 
         for(int i = 0; i < array.length; i++){
             list.add(array[i]);

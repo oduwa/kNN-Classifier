@@ -7,6 +7,9 @@
 package machinelearning_cw;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Random;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import weka.classifiers.Classifier;
@@ -20,7 +23,7 @@ import weka.core.Instances;
  */
 public class KNN extends BasicKNN{
 
-    private boolean useStandardisedAttributes = true;
+    private boolean useStandardisedAttributes = false;
     private boolean autoDetermineK = false;
     private boolean useWeightedVoting = false;
     private double mean;
@@ -109,7 +112,72 @@ public class KNN extends BasicKNN{
             }
         }
         
-        return super.classifyInstance(instance);
+        if(!useWeightedVoting){
+            return super.classifyInstance(instance);
+        }
+        else{
+            /* Calculate euclidean distances */
+        double[] distances = findEuclideanDistances(trainingData, instance);
+        
+        /* 
+         * Create a list of dictionaries where each dictionary contains
+         * the keys "distance", "weight" and "id".
+         * The distance key stores the euclidean distance for an instance and 
+         * the id key stores the hashcode for that instance object.
+         */
+        ArrayList<HashMap<String, Object>> table = this.buildDistanceTable(trainingData, distances);
+          //k=12;  
+            /* Find the k smallest distances */
+        Object[] kClosestRows = new Object[k];
+        Object[] kClosestInstances = new Object[k];
+        double[] classValues = new double[k];
+
+        for(int i = 1; i <= k; i++){
+            ArrayList<Integer> tieIndices = new ArrayList<Integer>();
+            
+            /* Find the positions in the table of the ith closest neighbour */
+            int[] closestRowIndices = this.findNthClosestNeighbourByWeights(table, i);
+
+            if (closestRowIndices.length > 0) {
+                /* Keep track of distance ties */
+                for (int j = 0; j < closestRowIndices.length; j++) {
+                    tieIndices.add(closestRowIndices[j]);
+                }
+
+                /* Break ties (by choosing winner at random) */
+                Random rand = new Random();
+                int matchingNeighbourPosition = tieIndices.get(rand.nextInt(tieIndices.size()));
+                HashMap<String, Object> matchingRow = table.get(matchingNeighbourPosition);
+                kClosestRows[i - 1] = matchingRow;
+            }
+        }
+
+        /* 
+         * Find the closestInstances from their rows in the table and also
+         * get their class values.
+         */
+        for(int i = 0; i < kClosestRows.length; i++){
+            /* Build up closestInstances array */
+            for(int j = 0; j < trainingData.numInstances(); j++){
+                Instance inst = trainingData.get(j);
+                HashMap<String, Object> row = (HashMap<String, Object>)kClosestRows[i];
+                if(Integer.toHexString(inst.hashCode()).equals(row.get("id"))){
+                    kClosestInstances[i] = inst;
+                    //System.out.println("MATCH" + inst + " " + row.get("distance"));
+                }
+            }
+            
+            /* Keep track of the class values of the closest instanes */
+            Instance inst = (Instance) kClosestInstances[i];
+            classValues[i] = inst.classValue();
+            //System.out.println(inst + "  " +inst.classValue());
+        }
+        
+        /* Return the most frequently occuring closest class */
+        ArrayList cardsList = new ArrayList(Arrays.asList(classValues));
+        return this.mode(this.arrayToArrayList(classValues));
+        }
+        
     }
 
     /*
@@ -270,5 +338,81 @@ public class KNN extends BasicKNN{
         } catch (Exception ex) {
             Logger.getLogger(KNN.class.getName()).log(Level.SEVERE, null, ex);
         }
+    }
+    
+    /**
+     * 
+     * Find the positions in a distance table of the nth closest neighbor 
+     * where n is a whole number greater than zero.
+     * 
+     * @param table A distance table in the form of an ArrayList whose 
+     * elements are HashMap objects with the keys "id" and "distance".
+     * @param n the rank of the positions to be returned. e.g. 1 for the 
+     * first closest/smallest, 2 for the 2nd closest/smallest etc.
+     * @return An array containing the position(s) of the nth smallest/closest
+     * distances in the table. (The array has a length greater than 1 when
+     * there exist ties in the distances in the table)
+     */
+    private int[] findNthClosestNeighbourByWeights(ArrayList<HashMap<String, Object>> table, int n){
+        int[] result = null;
+        sortDistanceTable(table, "weight");
+        int count = 0;
+        
+        // Find first closest
+        double largestSoFar = (double) table.get(0).get("weight");
+        
+        /* 
+         * Create 2D array where the ith element in the first array contains
+         * the positions of the ith greatest weights in the distance table.
+         *
+         * i.e. rank[0] contains an array which in turn contains the first
+         * largest value(s)
+         */
+        double[][] rank = new double[table.size()][table.size()];
+
+        /* Initialise rank matrix such that empty spaces contain -1 */
+        for (int x = 0; x < rank.length; x++) {
+            for (int y = 0; y < rank[x].length; y++) {
+                rank[x][y] = -1;
+            }
+        }
+
+        
+        /* Go through the table and populate the rank matrix */
+        int j = 0;
+        int k = 0;
+        for (int i = 0; i < table.size(); i++) {
+            if ((double) table.get(i).get("weight") == largestSoFar) {
+                rank[j][k] = i;
+                k++;
+            } 
+            else {
+                largestSoFar = (double) table.get(i).get("weight");
+                j++;
+                k = 0;
+                rank[j][k] = i;
+                k++;
+            }
+        }
+
+        /* 
+         * Calculate the size of the array to be returned based on the number 
+         * of nth smallest values
+         */
+        for (int x = 0; x < rank[n - 1].length; x++) {
+            if (rank[n - 1][x] != -1) {
+                count++;
+            }
+        }
+        
+        /* initialise return variable */
+        result = new int[count];
+        
+        /* Populate return variable accordingly */
+        for (int x = 0; x < result.length; x++) {
+            result[x] = (int) rank[n - 1][x];
+        }
+
+        return result;
     }
 }
