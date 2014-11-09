@@ -19,13 +19,14 @@ import weka.core.Instances;
 
 /**
  *
- * @author Odie
+ * @author 100024721
  */
 public class KNN extends BasicKNN{
 
     private boolean useStandardisedAttributes = false;
     private boolean autoDetermineK = false;
     private boolean useWeightedVoting = false;
+    private boolean useAcceleratedNNSearch = false;
     private double mean;
     private double standardDeviation;
     private boolean isMeanAndStdDevInitialised = false;
@@ -37,7 +38,7 @@ public class KNN extends BasicKNN{
             // For each data attribute
             for(int i = 0; i < data.numAttributes() - 1; i++){
                 // Calculate mean and Standard deviation
-                double[] meanAndStdDev = this.meanAndStandardDeviation(data, i);
+                double[] meanAndStdDev = Helpers.meanAndStandardDeviation(data, i);
                 double mean = meanAndStdDev[0];
                 double stdDev = meanAndStdDev[1];
                 this.mean = mean;
@@ -74,6 +75,10 @@ public class KNN extends BasicKNN{
         this.useWeightedVoting = useWeightedVoting;
     }
 
+    public void setUseAcceleratedNNSearch(boolean useAcceleratedNNSearch) {
+        this.useAcceleratedNNSearch = useAcceleratedNNSearch;
+    }
+    
     public void determineK() throws Exception{
         int maxK = (int) (0.4* (double)trainingData.numInstances());
         
@@ -116,70 +121,205 @@ public class KNN extends BasicKNN{
             return super.classifyInstance(instance);
         }
         else{
-            /* Calculate euclidean distances */
-        double[] distances = findEuclideanDistances(trainingData, instance);
-        
-        /* 
-         * Create a list of dictionaries where each dictionary contains
-         * the keys "distance", "weight" and "id".
-         * The distance key stores the euclidean distance for an instance and 
-         * the id key stores the hashcode for that instance object.
-         */
-        ArrayList<HashMap<String, Object>> table = this.buildDistanceTable(trainingData, distances);
-          //k=12;  
+            
+            if (!useAcceleratedNNSearch) {
+                /* Calculate euclidean distances */
+                double[] distances = Helpers.findEuclideanDistances(trainingData, instance);
+
+                /* 
+                 * Create a list of dictionaries where each dictionary contains
+                 * the keys "distance", "weight" and "id".
+                 * The distance key stores the euclidean distance for an instance and 
+                 * the id key stores the hashcode for that instance object.
+                 */
+                ArrayList<HashMap<String, Object>> table = Helpers.buildDistanceTable(trainingData, distances);
+                //k=12;  
             /* Find the k smallest distances */
-        Object[] kClosestRows = new Object[k];
-        Object[] kClosestInstances = new Object[k];
-        double[] classValues = new double[k];
+                Object[] kClosestRows = new Object[k];
+                Object[] kClosestInstances = new Object[k];
+                double[] classValues = new double[k];
 
-        for(int i = 1; i <= k; i++){
-            ArrayList<Integer> tieIndices = new ArrayList<Integer>();
-            
-            /* Find the positions in the table of the ith closest neighbour */
-            int[] closestRowIndices = this.findNthClosestNeighbourByWeights(table, i);
+                for (int i = 1; i <= k; i++) {
+                    ArrayList<Integer> tieIndices = new ArrayList<Integer>();
 
-            if (closestRowIndices.length > 0) {
-                /* Keep track of distance ties */
-                for (int j = 0; j < closestRowIndices.length; j++) {
-                    tieIndices.add(closestRowIndices[j]);
+                    /* Find the positions in the table of the ith closest neighbour */
+                    int[] closestRowIndices = this.findNthClosestNeighbourByWeights(table, i);
+
+                    if (closestRowIndices.length > 0) {
+                        /* Keep track of distance ties */
+                        for (int j = 0; j < closestRowIndices.length; j++) {
+                            tieIndices.add(closestRowIndices[j]);
+                        }
+
+                        /* Break ties (by choosing winner at random) */
+                        Random rand = new Random();
+                        int matchingNeighbourPosition = tieIndices.get(rand.nextInt(tieIndices.size()));
+                        HashMap<String, Object> matchingRow = table.get(matchingNeighbourPosition);
+                        kClosestRows[i - 1] = matchingRow;
+                    }
                 }
 
-                /* Break ties (by choosing winner at random) */
-                Random rand = new Random();
-                int matchingNeighbourPosition = tieIndices.get(rand.nextInt(tieIndices.size()));
-                HashMap<String, Object> matchingRow = table.get(matchingNeighbourPosition);
-                kClosestRows[i - 1] = matchingRow;
-            }
-        }
+                /* 
+                 * Find the closestInstances from their rows in the table and also
+                 * get their class values.
+                 */
+                for (int i = 0; i < kClosestRows.length; i++) {
+                    /* Build up closestInstances array */
+                    for (int j = 0; j < trainingData.numInstances(); j++) {
+                        Instance inst = trainingData.get(j);
+                        HashMap<String, Object> row = (HashMap<String, Object>) kClosestRows[i];
+                        if (Integer.toHexString(inst.hashCode()).equals(row.get("id"))) {
+                            kClosestInstances[i] = inst;
+                            //System.out.println("MATCH" + inst + " " + row.get("distance"));
+                        }
+                    }
 
-        /* 
-         * Find the closestInstances from their rows in the table and also
-         * get their class values.
-         */
-        for(int i = 0; i < kClosestRows.length; i++){
-            /* Build up closestInstances array */
-            for(int j = 0; j < trainingData.numInstances(); j++){
-                Instance inst = trainingData.get(j);
-                HashMap<String, Object> row = (HashMap<String, Object>)kClosestRows[i];
-                if(Integer.toHexString(inst.hashCode()).equals(row.get("id"))){
-                    kClosestInstances[i] = inst;
-                    //System.out.println("MATCH" + inst + " " + row.get("distance"));
+                    /* Keep track of the class values of the closest instanes */
+                    Instance inst = (Instance) kClosestInstances[i];
+                    classValues[i] = inst.classValue();
+                    //System.out.println(inst + "  " +inst.classValue());
                 }
+
+                /* Return the most frequently occuring closest class */
+                ArrayList cardsList = new ArrayList(Arrays.asList(classValues));
+                return Helpers.mode(Helpers.arrayToArrayList(classValues));
             }
-            
-            /* Keep track of the class values of the closest instanes */
-            Instance inst = (Instance) kClosestInstances[i];
-            classValues[i] = inst.classValue();
-            //System.out.println(inst + "  " +inst.classValue());
-        }
-        
-        /* Return the most frequently occuring closest class */
-        ArrayList cardsList = new ArrayList(Arrays.asList(classValues));
-        return this.mode(this.arrayToArrayList(classValues));
+            /* Use Orchards algorithm to accelerate NN search */
+            else {
+                // find k nearest neighbours
+                ArrayList<Instance> nearestNeighbours = new ArrayList<Instance>();
+                for (int i = 0; i < k; i++) {
+                    nearestNeighbours.add(findNthClosestWithOrchards(instance, trainingData, i));
+                }
+
+                // Find their class values
+                double[] classValues = new double[nearestNeighbours.size()];
+
+                for (int i = 0; i < nearestNeighbours.size(); i++) {
+                    classValues[i] = nearestNeighbours.get(i).classValue();
+                }
+
+                return Helpers.mode(Helpers.arrayToArrayList(classValues));
+            }
+
         }
         
     }
+    
+    /**
+     * Find the nth nearest neighbors of a data point within a data set
+     * where n is a positive non zero integer.
+     * 
+     * @param queryPoint The data point for which the n nearest neighbor is
+     * to be found.
+     * @param data The data set from which the closest neighbor is to be found. 
+     * @param n A positive non-zero integer representing the rank of the data
+     * point to be returned.
+     * @return The nth nearest neighbor of the specified query point .
+     */
+    public Instance findNthClosestWithOrchards(Instance queryPoint, Instances data, int n){
+        // Pre-processing
+        ArrayList<ArrayList<HashMap<String, Object>>>orchardMatrix = new ArrayList<ArrayList<HashMap<String, Object>>>();
+        
+        // Create orchard matrix of distances
+        for(Instance instance : data){
+            ArrayList<HashMap<String, Object>> distancesRow = new ArrayList<HashMap<String, Object>>();
+            
+            // get distances for this instance
+            for(Instance instance2 : data){
+                double distance = Double.MAX_VALUE;
+                if(!instance2.equals(instance)){
+                    distance = Helpers.distance(instance, instance2);
+                }
+                HashMap<String, Object> entry = new HashMap<String, Object>();
+                entry.put("instanceY", instance);
+                entry.put("instanceX", instance2);
+                entry.put("distance", (Double)distance);
+                distancesRow.add(entry);
+            }
+            
+            orchardMatrix.add(distancesRow);
+            
+        }
+        
+        //System.out.println(orchardMatrix);
 
+        // Sort each row
+        for(ArrayList<HashMap<String, Object>> row : orchardMatrix){
+            Helpers.sortDistanceTable(row, "distance");
+            System.out.println(row);
+        }
+        
+        HashMap<String, Object> entry = null;
+        for(int i = 0; i < n; i++){
+            queryPoint = (Instance) orchardsAlgorithm(orchardMatrix, queryPoint).get("instanceX");
+        }
+        
+        return queryPoint;//(Instance) entry.get("instanceX");
+
+    }
+
+    /**
+     * Applies Orchard's algorithm to find the nearest neighbor of a data point
+     * within a data set.
+     * 
+     * @param orchardMatrix A matrix in the form of a 2-dimensional ArrayList
+     * containing the distances from each other for a data set. Each entry in
+     * the matrix contains a HashMap with the keys "instanceY", "instanceX"
+     * and "distance".
+     * @param queryPoint The data point for which the nearest neighbor is
+     * to be found.
+     * @return a HashMap entry from the provided orchardMatrix which is closest
+     * to the specified queryPoint.
+     */
+    public HashMap<String, Object> orchardsAlgorithm(ArrayList<ArrayList<HashMap<String, Object>>> orchardMatrix, Instance queryPoint){
+
+        // Let i be the index of initial guess codeword
+        int i = 0;
+        int bestIndex = i;
+        Instance indexedPoint = (Instance) orchardMatrix.get(i).get(0).get("instanceY");
+        double r = Helpers.distance(queryPoint, indexedPoint);
+        int j = 0;
+        Instance bestInstance = indexedPoint;
+        
+        double smallestDistance = Double.MAX_VALUE;
+        while((double)orchardMatrix.get(i).get(j).get("distance") < 2*r){
+            // check if distance btwn point j and query point is less than r
+            Instance pointJ = (Instance) orchardMatrix.get(i).get(j).get("instanceX");
+            double distance = Helpers.distance(queryPoint, pointJ);
+            System.out.println("DIST: " + distance + "SMALL: " + smallestDistance);
+            //System.out.println("\tSMALL: " + smallestDistance);
+            if(distance < r && distance < smallestDistance){
+                bestIndex = j;
+                bestInstance = pointJ;
+                smallestDistance = distance;
+                System.out.println("\tBESTINDEX: " + j);
+            }
+            j++;
+        }
+        
+        // Remove duplicates
+//        for(ArrayList<HashMap<String, Object>> innerList : orchardMatrix){
+//            ArrayList<HashMap<String, Object>> distancesRow = innerList;
+//            for(int x = 0; x < distancesRow.size(); x++){
+//                HashMap<String, Object> entry = distancesRow.get(x);
+//                if((double)entry.get("distance") == smallestDistance && entry.get("instanceY") == indexedPoint){
+//                    System.out.println("REMOVED: " + distancesRow.remove(x));
+//                    x = 0;
+//                }
+//            } 
+//        }
+        
+        // dont need to remove duplicates because thats the according to orchards algorithm as opposed to simply using euclidean distances
+        
+        System.out.println("BEST = " + bestIndex);
+        //return bestInstance;
+        //return (Instance) orchardMatrix.get(i).get(bestIndex).get("instanceX");
+        return orchardMatrix.get(i).remove(bestIndex);
+        
+    }
+
+    
     /*
     @Override
     public double[] distributionForInstance(Instance instance) throws Exception {
@@ -195,100 +335,57 @@ public class KNN extends BasicKNN{
     
     /************************** HELPER METHODS ***************************/
     
-    private double[] meanAndStandardDeviation(Instances data, int attributeIndex){
-        double sum = 0, s = 0;
-        double reps = data.numInstances();
-        double sumSquared = 0;
-        
-        for (int i = 0; i < reps; i++) {
-            double value = data.get(i).value(attributeIndex);
-            sum += value;
-            sumSquared += (value * value);
-        }
-        
-        double mean = sum / reps;
-        double variance = sumSquared / reps - (mean * mean);
-        double stdDev = Math.sqrt(variance);
-        
-        double[] result = {mean, stdDev};
-        return result;
-    }
-    
-    private double estimateAccuracyByThreeFoldCV(int k) throws Exception{
-        ArrayList<Double> accuracies = new ArrayList<Double>();
-        
-        /* Partition data into s almost equal subsets. for now let s be 3 */
-        int s = 3;
-        int n = trainingData.size();
-        ArrayList<Instances> partitions = new ArrayList<Instances>();
-        for(int i = 1; i <= s; i++){
-            if(i != s){
-                int start = (n / s) * (i - 1);
-                int stop = (n / s) * (i);
-                Instances partition = new Instances(trainingData, start, n/s);
-                partitions.add(partition);
-            }
-            else{
-                int partitionedSoFar = (n/s)*(s-1);
-                int remainder = n - partitionedSoFar;
-                int start = (n / s) * (i - 1);
-                Instances partition = new Instances(trainingData, start, remainder);
-                partitions.add(partition);
-            } 
-        }
-
-        /* train s classifiers and test subset i on the ith partition */
-        for(int i = 0; i < s; i++){
-            BasicKNN classifier = new BasicKNN();
-            Instances trainingInstances = null;
-            Instances testInstances = partitions.get(i);
-            
-            // build training data from training partitions
-            for(int j = 0; j < s; j++){
-                if(j != i){
-                    if(trainingInstances == null){
-                        trainingInstances = new Instances(partitions.get(j));
-                    }
-                    else{
-                        trainingInstances.addAll(partitions.get(j));
-                    }
-                }
-            }
-            classifier.setK(k);
-            classifier.buildClassifier(trainingInstances);
-            
-            /* test classifer on the one testing partition */
-            double accuracy = this.findClassifierAccuracy(classifier, testInstances); 
-            accuracies.add(accuracy);
-        }
-        
-        /* find average accuracy */
-        double count = accuracies.size();
-        double sum = 0;
-        for(Double eachAccuracy : accuracies){
-            sum += eachAccuracy;
-        }
-        double averageAccuracy = sum/count;
-        
-        System.out.println("ACCURACY = " + averageAccuracy);
-        return averageAccuracy;
-    }
-    
     private double estimateAccuracyByLOOCV(int k) throws Exception{
         ArrayList<Double> accuracies = new ArrayList<Double>();
+        ArrayList<ArrayList<HashMap<String, Object>>>distanceMatrix = new ArrayList<ArrayList<HashMap<String, Object>>>();
         
-        /* In a training set of n, train the model on n-1 and test on 1 */
-        int n = trainingData.size();
-        for(int i = 0; i < n; i++){
-            Instances trainingSet = new Instances(trainingData);
-            Instance testInstance = trainingSet.remove(i);
+        /* 
+         * For each pattern, compute the distance between it and the entire
+         * training set and storein a 2-dimensional array
+         */
+        for(Instance testInstance : trainingData){
+            ArrayList<HashMap<String, Object>> distancesRow = new ArrayList<HashMap<String, Object>>();
             
-            BasicKNN classifier = new BasicKNN();
-            classifier.setK(k);
-            classifier.buildClassifier(trainingSet);
+            /* 
+             * Compute distance between test pattern and rest of 
+             * training data 
+            */
+            for(Instance trainingInstance : trainingData){
+                double distance = -1;
+                if(!testInstance.equals(trainingInstance)){
+                    distance = Helpers.distance(testInstance, trainingInstance);
+                }
+                HashMap<String, Object> entry = new HashMap<String, Object>();
+                entry.put("testInstance", testInstance);
+                entry.put("trainingInstance", trainingInstance);
+                entry.put("distance", (Double)distance);
+                distancesRow.add(entry);
+            }
             
-            /* Test classifer on test instance and measure accuracy */
-            double accuracy = this.findClassifierAccuracy(classifier, testInstance); 
+            Helpers.sortDistanceTable(distancesRow, "distance");
+            distanceMatrix.add(distancesRow);
+            
+           /* 
+            * For each test instance, classify by choosing the 2nd to the (k+1)st
+            * in the sorted list.
+            */
+            Instance[] closestDistances = new Instance[k];
+            double[] closestClassValues = new double[k];
+            distancesRow.remove(0);
+            for(int i = 0; i < closestDistances.length; i++){
+                closestDistances[i] = (Instance) distancesRow.remove(0).get("trainingInstance");
+                closestClassValues[i] = closestDistances[i].classValue();
+            }
+            
+            /* Calculate accuracy */
+            double predictedClass = Helpers.mode(Helpers.arrayToArrayList(closestClassValues));
+            double actualClass = testInstance.classValue();
+            double accuracy = 0;
+            
+            if(predictedClass == actualClass){
+                accuracy = 1.0;
+            }
+
             accuracies.add(accuracy);
         }
         
@@ -302,38 +399,12 @@ public class KNN extends BasicKNN{
         return averageAccuracy;
     }
     
-    private double findClassifierAccuracy(Classifier classifier, Instances instances) throws Exception{
-        /* Find probablitity thatpredicted value is same as actual value - so numRight/totalNum */
-        double numberCorrect = 0;
-        double totalNumber = instances.numInstances();
-        
-        for(Instance instance : instances){
-            double prediction = classifier.classifyInstance(instance);
-            double actualValue = instance.classValue();
-            if(prediction == actualValue){
-                numberCorrect++;
-            }  
-        }
-        
-        return numberCorrect/totalNumber;
-    }
     
-    private double findClassifierAccuracy(Classifier classifier, Instance instance) throws Exception{
-        
-        double result = 0;
-
-        double prediction = classifier.classifyInstance(instance);
-        double actualValue = instance.classValue();
-        if (prediction == actualValue) {
-            result = 1.0;
-        }
-
-        return result;
-    }
     
     public void testEstimateK(){
         try {
-            System.out.println(estimateAccuracyByThreeFoldCV(3));
+            //System.out.println(estimateAccuracyByThreeFoldCV(3));
+            estimateAccuracyByLOOCV(3);
             //estimateAccuracy(3);
         } catch (Exception ex) {
             Logger.getLogger(KNN.class.getName()).log(Level.SEVERE, null, ex);
@@ -355,7 +426,7 @@ public class KNN extends BasicKNN{
      */
     private int[] findNthClosestNeighbourByWeights(ArrayList<HashMap<String, Object>> table, int n){
         int[] result = null;
-        sortDistanceTable(table, "weight");
+        Helpers.sortDistanceTable(table, "weight");
         int count = 0;
         
         // Find first closest

@@ -1,138 +1,23 @@
 /*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
+ * A class containing static methods for useful functions used throughout the
+ * project.
  */
 
 package machinelearning_cw;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.Random;
 import weka.classifiers.Classifier;
-import weka.core.Capabilities;
 import weka.core.Instance;
 import weka.core.Instances;
 
 /**
  *
- * @author Odie
+ * @author 100024721
  */
-public class BasicKNN implements Classifier{
-
-    protected int k = 1;
-    protected Instances trainingData;
-    
-    @Override
-    public void buildClassifier(Instances data) throws Exception {
-        trainingData = new Instances(data);
-    }
-
-    @Override
-    public double classifyInstance(Instance instance) throws Exception {
-        /* Calculate euclidean distances */
-        double[] distances = findEuclideanDistances(trainingData, instance);
-        
-        /* 
-         * Create a list of dictionaries where each dictionary contains
-         * the keys "distance" and "id".
-         * The distance key stores the euclidean distance for an instance and 
-         * the id key stores the hashcode for that instance object.
-         */
-        ArrayList<HashMap<String, Object>> table = this.buildDistanceTable(trainingData, distances);
-
-        /*
-        this.sortDistanceTable(table, "distance");
-        for(int i = 0; i < distances.length; i++){
-            HashMap<String, Object> row = table.get(i);
-            Instance inst = trainingData.get(i);
-            System.out.println(row.get("distance"));
-        }
-        System.out.println("");
-        */
-        
-        
-        //k=5;
-        /* Find the k smallest distances */
-        Object[] kClosestRows = new Object[k];
-        Object[] kClosestInstances = new Object[k];
-        double[] classValues = new double[k];
-        
-        for(int i = 1; i <= k; i++){
-            ArrayList<Integer> tieIndices = new ArrayList<Integer>();
-            
-            /* Find the positions in the table of the ith closest neighbour */
-            int[] closestRowIndices = this.findNthClosestNeighbour(table, i);
-            
-            if (closestRowIndices.length > 0) {
-                /* Keep track of distance ties */
-                for (int j = 0; j < closestRowIndices.length; j++) {
-                    tieIndices.add(closestRowIndices[j]);
-                }
-
-                /* Break ties (by choosing winner at random) */
-                Random rand = new Random();
-                int matchingNeighbourPosition = tieIndices.get(rand.nextInt(tieIndices.size()));
-                HashMap<String, Object> matchingRow = table.get(matchingNeighbourPosition);
-                kClosestRows[i - 1] = matchingRow;
-            }
-
-        }
-
-        /* 
-         * Find the closestInstances from their rows in the table and also
-         * get their class values.
-         */
-        for(int i = 0; i < kClosestRows.length; i++){
-            /* Build up closestInstances array */
-            for(int j = 0; j < trainingData.numInstances(); j++){
-                Instance inst = trainingData.get(j);
-                HashMap<String, Object> row = (HashMap<String, Object>)kClosestRows[i];
-                if(Integer.toHexString(inst.hashCode()).equals(row.get("id"))){
-                    kClosestInstances[i] = inst;
-                    //System.out.println("MATCH" + inst + " " + row.get("distance"));
-                }
-            }
-            
-            /* Keep track of the class values of the closest instanes */
-            Instance inst = (Instance) kClosestInstances[i];
-            classValues[i] = inst.classValue();
-            //System.out.println(inst + "  " +inst.classValue());
-        }
-        
-        /* Return the most frequently occuring closest class */
-        ArrayList cardsList = new ArrayList(Arrays.asList(classValues));
-        //System.out.println(this.mode(this.arrayToArrayList(classValues)));
-        //System.out.println(this.mode(Arrays.asList(classValues)));
-        return this.mode(this.arrayToArrayList(classValues));
-    }
-    
-    @Override
-    public double[] distributionForInstance(Instance instance) throws Exception {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-    }
-
-    @Override
-    public Capabilities getCapabilities() {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-    }
-    
-    public void setK(int k){
-        if(k <= 0 && k >= trainingData.numInstances()){
-            throw new IllegalArgumentException("k Must be an integer value "
-                    + "greater than 0");
-        }
-        else{
-            this.k = k;
-        }
-    }
-    
-    
-    /************************ HELPER METHODS **************************/
+public class Helpers {
     
     /**
      * Calculates the distances of the given Instance data from the
@@ -150,7 +35,7 @@ public class BasicKNN implements Classifier{
      * array corresponds to the distance of the "instance" param from the
      * training data at that same position.
      */
-    protected double[] findEuclideanDistances(Instances data, Instance instance){
+    public static double[] findEuclideanDistances(Instances data, Instance instance){
         /* Initialise array to hold euclidean distances */
         double[] distances = new double[data.numInstances()];
         
@@ -196,7 +81,7 @@ public class BasicKNN implements Classifier{
      * HashMap objects. Each item in the array list represents a row in the
      * table and each key-value pair in the HashMap represents a column
      */
-    protected ArrayList<HashMap<String, Object>> buildDistanceTable(Instances data, double[] distances){
+    public static ArrayList<HashMap<String, Object>> buildDistanceTable(Instances data, double[] distances){
         /* Initialise table */
         ArrayList<HashMap<String, Object>> table = new ArrayList<HashMap<String, Object>>();
         
@@ -227,7 +112,7 @@ public class BasicKNN implements Classifier{
      * "distance" or "weight"
      * 
      */
-    protected void sortDistanceTable(ArrayList<HashMap<String, Object>> table, String sortParam){
+    public static void sortDistanceTable(ArrayList<HashMap<String, Object>> table, String sortParam){
         
         if(sortParam.equalsIgnoreCase("distance")){
             /* Sort hash map in ascending using anonymous comparator */
@@ -273,7 +158,6 @@ public class BasicKNN implements Classifier{
         
     }
     
-    
     /**
      * 
      * Find the positions in a distance table of the nth closest neighbor 
@@ -287,7 +171,7 @@ public class BasicKNN implements Classifier{
      * distances in the table. (The array has a length greater than 1 when
      * there exist ties in the distances in the table)
      */
-    protected int[] findNthClosestNeighbour(ArrayList<HashMap<String, Object>> table, int n){
+    public static int[] findNthClosestNeighbour(ArrayList<HashMap<String, Object>> table, int n){
         int[] result = null;
         sortDistanceTable(table, "distance");
         int count = 0;
@@ -351,6 +235,16 @@ public class BasicKNN implements Classifier{
         return result;
     }
     
+    public static double distance(Instance instance1, Instance instance2){
+        double distance = 0;
+
+        for (int j = 0; j < instance1.numAttributes() - 1; j++) {
+            double difference = instance1.value(j) - instance2.value(j);
+            distance += Math.pow(difference, 2);
+        }
+
+        return distance;
+    }
     
     /**
      * 
@@ -360,7 +254,7 @@ public class BasicKNN implements Classifier{
      * @param list a list of values whose mode is to be found
      * @return mode value. ie value with highest frequency.
      */
-    protected double mode(ArrayList<Double> list) {
+    public static double mode(ArrayList<Double> list) {
         int maxSoFar = 0;
         int maxIndex = 0;
         
@@ -386,7 +280,7 @@ public class BasicKNN implements Classifier{
      * @param array the array to be converted to an ArrayList.
      * @return an ArrayList representation of the input array.
      */
-    protected ArrayList<Double> arrayToArrayList(double[] array){
+    public static ArrayList<Double> arrayToArrayList(double[] array){
         ArrayList<Double> list = new ArrayList<Double>(); 
         for(int i = 0; i < array.length; i++){
             list.add(array[i]);
@@ -394,5 +288,140 @@ public class BasicKNN implements Classifier{
         return list;
     }
 
+    public static double[] meanAndStandardDeviation(Instances data, int attributeIndex){
+        double sum = 0, s = 0;
+        double reps = data.numInstances();
+        double sumSquared = 0;
+        
+        for (int i = 0; i < reps; i++) {
+            double value = data.get(i).value(attributeIndex);
+            sum += value;
+            sumSquared += (value * value);
+        }
+        
+        double mean = sum / reps;
+        double variance = sumSquared / reps - (mean * mean);
+        double stdDev = Math.sqrt(variance);
+        
+        double[] result = {mean, stdDev};
+        return result;
+    }
     
+    public static double estimateAccuracyByThreeFoldCV(int k, Instances trainingData) throws Exception{
+        ArrayList<Double> accuracies = new ArrayList<Double>();
+        
+        /* Partition data into s almost equal subsets. for now let s be 3 */
+        int s = 3;
+        int n = trainingData.size();
+        ArrayList<Instances> partitions = new ArrayList<Instances>();
+        for(int i = 1; i <= s; i++){
+            if(i != s){
+                int start = (n / s) * (i - 1);
+                int stop = (n / s) * (i);
+                Instances partition = new Instances(trainingData, start, n/s);
+                partitions.add(partition);
+            }
+            else{
+                int partitionedSoFar = (n/s)*(s-1);
+                int remainder = n - partitionedSoFar;
+                int start = (n / s) * (i - 1);
+                Instances partition = new Instances(trainingData, start, remainder);
+                partitions.add(partition);
+            } 
+        }
+
+        /* train s classifiers and test subset i on the ith partition */
+        for(int i = 0; i < s; i++){
+            BasicKNN classifier = new BasicKNN();
+            Instances trainingInstances = null;
+            Instances testInstances = partitions.get(i);
+            
+            // build training data from training partitions
+            for(int j = 0; j < s; j++){
+                if(j != i){
+                    if(trainingInstances == null){
+                        trainingInstances = new Instances(partitions.get(j));
+                    }
+                    else{
+                        trainingInstances.addAll(partitions.get(j));
+                    }
+                }
+            }
+            classifier.setK(k);
+            classifier.buildClassifier(trainingInstances);
+            
+            /* test classifer on the one testing partition */
+            double accuracy = findClassifierAccuracy(classifier, testInstances); 
+            accuracies.add(accuracy);
+        }
+        
+        /* find average accuracy */
+        double count = accuracies.size();
+        double sum = 0;
+        for(Double eachAccuracy : accuracies){
+            sum += eachAccuracy;
+        }
+        double averageAccuracy = sum/count;
+        
+        System.out.println("ACCURACY = " + averageAccuracy);
+        return averageAccuracy;
+    }
+    
+    private double estimateAccuracyByLOOCV_OLD(int k, Instances trainingData) throws Exception{
+        ArrayList<Double> accuracies = new ArrayList<Double>();
+
+        /* In a training set of n, train the model on n-1 and test on 1 */
+        int n = trainingData.size();
+        for(int i = 0; i < n; i++){
+            Instances trainingSet = new Instances(trainingData);
+            Instance testInstance = trainingSet.remove(i);
+            
+            BasicKNN classifier = new BasicKNN();
+            classifier.setK(k);
+            classifier.buildClassifier(trainingSet);
+            
+            /* Test classifer on test instance and measure accuracy */
+            double accuracy = Helpers.findClassifierAccuracy(classifier, testInstance); 
+            accuracies.add(accuracy);
+        }
+        
+        /* find average accuracy */
+        double count = accuracies.size();
+        double sum = 0;
+        for(Double eachAccuracy : accuracies){
+            sum += eachAccuracy;
+        }
+        double averageAccuracy = sum/count;
+        return averageAccuracy;
+    }
+    
+    
+    private static double findClassifierAccuracy(Classifier classifier, Instances instances) throws Exception{
+        /* Find probablitity thatpredicted value is same as actual value - so numRight/totalNum */
+        double numberCorrect = 0;
+        double totalNumber = instances.numInstances();
+        
+        for(Instance instance : instances){
+            double prediction = classifier.classifyInstance(instance);
+            double actualValue = instance.classValue();
+            if(prediction == actualValue){
+                numberCorrect++;
+            }  
+        }
+        
+        return numberCorrect/totalNumber;
+    }
+    
+    private static double findClassifierAccuracy(Classifier classifier, Instance instance) throws Exception{
+        
+        double result = 0;
+
+        double prediction = classifier.classifyInstance(instance);
+        double actualValue = instance.classValue();
+        if (prediction == actualValue) {
+            result = 1.0;
+        }
+
+        return result;
+    }
 }

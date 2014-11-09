@@ -6,11 +6,12 @@
 
 package machinelearning_cw;
 
+import weka.core.Instance;
 import weka.core.Instances;
 
 /**
  *
- * @author Odie
+ * @author 100024721
  */
 public class MachineLearning_CW {
 
@@ -34,10 +35,18 @@ public class MachineLearning_CW {
         KNN knn = new KNN();
         //knn.setAutoDetermineK(true);
         knn.setUseWeightedVoting(true);
+        knn.setUseAcceleratedNNSearch(true);
         knn.buildClassifier(train);
         //knn.testEstimateK();
         System.out.println("DECISION: " + knn.classifyInstance(test.get(0)));
         //*/
+        for(Instance instance : train){
+           // System.out.println(knn.distance(test.firstInstance(), instance));;
+        }
+        
+        //System.out.println(knn.findNClosestNeighbourWithOrchards(test.get(0), train, 3));
+        
+        //System.out.println(knn.orchardsAlgorithm(test.get(1), train));;
     }
     
 }
