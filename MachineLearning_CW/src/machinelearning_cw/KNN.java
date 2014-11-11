@@ -334,7 +334,13 @@ public class KNN extends BasicKNN{
     
     
     /************************** HELPER METHODS ***************************/
-    
+    /**
+     * Estimate the accuracy of using a value as k by applying 
+     * Leave-One-Out-Cross-Validation(LOOCV).
+     * @param k
+     * @return
+     * @throws Exception 
+     */
     private double estimateAccuracyByLOOCV(int k) throws Exception{
         ArrayList<Double> accuracies = new ArrayList<Double>();
         ArrayList<ArrayList<HashMap<String, Object>>>distanceMatrix = new ArrayList<ArrayList<HashMap<String, Object>>>();
@@ -349,7 +355,7 @@ public class KNN extends BasicKNN{
             /* 
              * Compute distance between test pattern and rest of 
              * training data 
-            */
+             */
             for(Instance trainingInstance : trainingData){
                 double distance = -1;
                 if(!testInstance.equals(trainingInstance)){
