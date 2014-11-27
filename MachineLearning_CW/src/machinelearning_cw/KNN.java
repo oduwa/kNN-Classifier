@@ -16,6 +16,7 @@ import weka.classifiers.Classifier;
 import weka.core.Capabilities;
 import weka.core.Instance;
 import weka.core.Instances;
+import weka.core.Utils;
 
 /**
  *
@@ -23,7 +24,7 @@ import weka.core.Instances;
  */
 public class KNN extends BasicKNN{
 
-    private boolean useStandardisedAttributes = false;
+    private boolean useStandardisedAttributes = true;
     private boolean autoDetermineK = false;
     private boolean useWeightedVoting = false;
     private boolean useAcceleratedNNSearch = false;
@@ -44,7 +45,6 @@ public class KNN extends BasicKNN{
                 this.mean = mean;
                 this.standardDeviation = stdDev;
                 isMeanAndStdDevInitialised = true;
-                //System.out.println("MEAN: " + mean + "\tSTD: " + stdDev);
 
                 // Standardise the values in all instances for given attribute
                 for(Instance eachInstance : data){
@@ -80,6 +80,19 @@ public class KNN extends BasicKNN{
     }
     
     public void determineK() throws Exception{
+        ArrayList<ArrayList<HashMap<String, Object>>>distanceMatrix = null;
+        
+        /* Check that training data is not too large before making distance 
+         * matrix as a 3000 squared arraylist of arraylists will break
+         * the heap.
+         *
+         * If it does, use the slower approach of using a new BasicKNN instance
+         * for each fold of the LOOCV.
+         */
+        if(trainingData.size() < 3000){
+            distanceMatrix = getDistanceMatrix();
+        }
+        
         int maxK = (int) (0.4* (double)trainingData.numInstances());
         
         if(maxK > 100){
@@ -87,9 +100,24 @@ public class KNN extends BasicKNN{
         }
         
         int greatestAccuracyK = 1;
-        double greatestAccuracy = estimateAccuracyByLOOCV(1);
+        double greatestAccuracy = 0; 
+        if (distanceMatrix != null) {
+            greatestAccuracy = estimateAccuracyByLOOCV_NEW(1, distanceMatrix);
+        } 
+        else {
+            greatestAccuracy = Helpers.estimateAccuracyByLOOCV_OLD(1, trainingData);
+        }
+        
         for(int k = 1; k <= maxK; k++){
-            double accuracyEstimate = estimateAccuracyByLOOCV(k);
+            double accuracyEstimate = 0;
+            
+            if(distanceMatrix != null){
+                accuracyEstimate = estimateAccuracyByLOOCV_NEW(k, distanceMatrix);
+            }
+            else{
+                accuracyEstimate = Helpers.estimateAccuracyByLOOCV_OLD(k, trainingData);
+            }
+            
             if(accuracyEstimate > greatestAccuracy){
                 greatestAccuracy = accuracyEstimate;
                 greatestAccuracyK = k;
@@ -102,6 +130,12 @@ public class KNN extends BasicKNN{
     
     @Override
     public double classifyInstance(Instance instance) throws Exception {
+        // Check that classifier has been trained
+        if(trainingData == null){
+            throw new Exception("Classifier has not been trained."
+                    + " No call to buildClassifier() was made");
+        }
+        
         if(useStandardisedAttributes){
             if(!isMeanAndStdDevInitialised){
                 // throw exception
@@ -122,7 +156,7 @@ public class KNN extends BasicKNN{
         }
         else{
             
-            if (!useAcceleratedNNSearch) {
+            if(!useAcceleratedNNSearch) {
                 /* Calculate euclidean distances */
                 double[] distances = Helpers.findEuclideanDistances(trainingData, instance);
 
@@ -134,7 +168,7 @@ public class KNN extends BasicKNN{
                  */
                 ArrayList<HashMap<String, Object>> table = Helpers.buildDistanceTable(trainingData, distances);
                 //k=12;  
-            /* Find the k smallest distances */
+                /* Find the k smallest distances */
                 Object[] kClosestRows = new Object[k];
                 Object[] kClosestInstances = new Object[k];
                 double[] classValues = new double[k];
@@ -170,19 +204,53 @@ public class KNN extends BasicKNN{
                         HashMap<String, Object> row = (HashMap<String, Object>) kClosestRows[i];
                         if (Integer.toHexString(inst.hashCode()).equals(row.get("id"))) {
                             kClosestInstances[i] = inst;
-                            //System.out.println("MATCH" + inst + " " + row.get("distance"));
+                        }
+                    }
+                }
+
+                /* Vote by weights */
+                
+                /* Get max class value */
+                double[] possibleClassValues = trainingData.attributeToDoubleArray(trainingData.classIndex());
+                int maxClassIndex = Utils.maxIndex(possibleClassValues);
+                double maxClassValue = possibleClassValues[maxClassIndex];
+                ArrayList<Double> weightedVotes = new ArrayList<Double>();
+                
+                /* Calculate the sum of votes for each class */
+                for (double i = 0; i <= maxClassValue; i++) {
+                    double weightCount = 0;
+                    
+                    /* Calculate sum */
+                    for (int j = 0; j < kClosestInstances.length; j++) {
+                        Instance candidateInstance = (Instance) kClosestInstances[j];
+                        if (candidateInstance.classValue() == i) {
+                            // Get weight
+                            HashMap<String, Object> row = (HashMap<String, Object>) kClosestRows[(int) j];
+                            weightCount += (double) row.get("weight");
                         }
                     }
 
-                    /* Keep track of the class values of the closest instanes */
-                    Instance inst = (Instance) kClosestInstances[i];
-                    classValues[i] = inst.classValue();
-                    //System.out.println(inst + "  " +inst.classValue());
+                    weightedVotes.add(weightCount);
+                }
+                
+                /* Select instance with highest vote */
+                Double[] votesArray = new Double[weightedVotes.size()];
+                weightedVotes.toArray(votesArray);
+                double greatestSoFar = votesArray[0];
+                int greatestIndex = 0;
+                for(int i = 0; i < votesArray.length; i++){
+                    if(votesArray[i] > greatestSoFar){
+                        greatestSoFar = votesArray[i];
+                        greatestIndex = i;
+                    }
                 }
 
-                /* Return the most frequently occuring closest class */
-                ArrayList cardsList = new ArrayList(Arrays.asList(classValues));
-                return Helpers.mode(Helpers.arrayToArrayList(classValues));
+                /* 
+                 * Class value will be the index because classes are indexed 
+                 * from 0 upwards.
+                 */
+                return greatestIndex;
+
             }
             /* Use Orchards algorithm to accelerate NN search */
             else {
@@ -247,7 +315,6 @@ public class KNN extends BasicKNN{
         // Sort each row
         for(ArrayList<HashMap<String, Object>> row : orchardMatrix){
             Helpers.sortDistanceTable(row, "distance");
-            System.out.println(row);
         }
         
         HashMap<String, Object> entry = null;
@@ -287,34 +354,17 @@ public class KNN extends BasicKNN{
             // check if distance btwn point j and query point is less than r
             Instance pointJ = (Instance) orchardMatrix.get(i).get(j).get("instanceX");
             double distance = Helpers.distance(queryPoint, pointJ);
-            System.out.println("DIST: " + distance + "SMALL: " + smallestDistance);
+            //System.out.println("DIST: " + distance + "SMALL: " + smallestDistance);
             //System.out.println("\tSMALL: " + smallestDistance);
             if(distance < r && distance < smallestDistance){
                 bestIndex = j;
                 bestInstance = pointJ;
                 smallestDistance = distance;
-                System.out.println("\tBESTINDEX: " + j);
+                //System.out.println("\tBESTINDEX: " + j);
             }
             j++;
         }
-        
-        // Remove duplicates
-//        for(ArrayList<HashMap<String, Object>> innerList : orchardMatrix){
-//            ArrayList<HashMap<String, Object>> distancesRow = innerList;
-//            for(int x = 0; x < distancesRow.size(); x++){
-//                HashMap<String, Object> entry = distancesRow.get(x);
-//                if((double)entry.get("distance") == smallestDistance && entry.get("instanceY") == indexedPoint){
-//                    System.out.println("REMOVED: " + distancesRow.remove(x));
-//                    x = 0;
-//                }
-//            } 
-//        }
-        
-        // dont need to remove duplicates because thats the according to orchards algorithm as opposed to simply using euclidean distances
-        
-        System.out.println("BEST = " + bestIndex);
-        //return bestInstance;
-        //return (Instance) orchardMatrix.get(i).get(bestIndex).get("instanceX");
+
         return orchardMatrix.get(i).remove(bestIndex);
         
     }
@@ -403,8 +453,42 @@ public class KNN extends BasicKNN{
         }
         double averageAccuracy = sum/count;
         return averageAccuracy;
+        
+        
     }
     
+    public ArrayList<ArrayList<HashMap<String, Object>>> getDistanceMatrix(){
+        ArrayList<ArrayList<HashMap<String, Object>>>distanceMatrix = new ArrayList<ArrayList<HashMap<String, Object>>>();
+        
+        /* 
+         * For each pattern, compute the distance between it and the entire
+         * training set and storein a 2-dimensional array
+         */
+        for(Instance testInstance : trainingData){
+            ArrayList<HashMap<String, Object>> distancesRow = new ArrayList<HashMap<String, Object>>();
+            
+            /* 
+             * Compute distance between test pattern and rest of 
+             * training data 
+             */
+            for(Instance trainingInstance : trainingData){
+                double distance = -1;//Double.MAX_VALUE;
+                if(!testInstance.equals(trainingInstance)){
+                    distance = Helpers.distance(testInstance, trainingInstance);
+                }
+                HashMap<String, Object> entry = new HashMap<String, Object>();
+                entry.put("testInstance", testInstance);
+                entry.put("trainingInstance", trainingInstance);
+                entry.put("distance", (Double)distance);
+                distancesRow.add(entry);
+            }
+            
+            Helpers.sortDistanceTable(distancesRow, "distance");
+            distanceMatrix.add(distancesRow);
+        }
+        
+        return distanceMatrix;
+    }
     
     
     public void testEstimateK(){
@@ -491,5 +575,48 @@ public class KNN extends BasicKNN{
         }
 
         return result;
+    }
+    
+    private double estimateAccuracyByLOOCV_NEW(int k, ArrayList<ArrayList<HashMap<String, Object>>>distanceMatrix) throws Exception{
+        ArrayList<Double> accuracies = new ArrayList<Double>();
+
+        int i = 0;
+        
+        for(ArrayList<HashMap<String, Object>> distancesRow : distanceMatrix){
+            Instance testInstance = trainingData.get(i);
+
+            /* 
+            * For each test instance, classify by choosing the 2nd to the (k+1)st
+            * in the sorted list.
+            */
+            Instance[] closestDistances = new Instance[k];
+            double[] closestClassValues = new double[k];
+            for(int j = 0; j < closestDistances.length; j++){
+                closestDistances[j] = (Instance) distancesRow.get(j).get("trainingInstance");
+                closestClassValues[j] = closestDistances[j].classValue();
+            }
+            
+            /* Calculate accuracy */
+            double predictedClass = Helpers.mode(Helpers.arrayToArrayList(closestClassValues));
+            double actualClass = testInstance.classValue();
+            double accuracy = 0;
+            
+            if(predictedClass == actualClass){
+                accuracy = 1.0;
+            }
+
+            accuracies.add(accuracy);
+            i++;
+        }
+        
+        /* find average accuracy */
+        double count = accuracies.size();
+        double sum = 0;
+        for(Double eachAccuracy : accuracies){
+            sum += eachAccuracy;
+        }
+        double averageAccuracy = sum/count;
+        return averageAccuracy;
+
     }
 }

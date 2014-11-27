@@ -363,11 +363,10 @@ public class Helpers {
         }
         double averageAccuracy = sum/count;
         
-        System.out.println("ACCURACY = " + averageAccuracy);
         return averageAccuracy;
     }
     
-    private double estimateAccuracyByLOOCV_OLD(int k, Instances trainingData) throws Exception{
+    public static double estimateAccuracyByLOOCV_OLD(int k, Instances trainingData) throws Exception{
         ArrayList<Double> accuracies = new ArrayList<Double>();
 
         /* In a training set of n, train the model on n-1 and test on 1 */
@@ -396,7 +395,9 @@ public class Helpers {
     }
     
     
-    private static double findClassifierAccuracy(Classifier classifier, Instances instances) throws Exception{
+    
+    
+    public static double findClassifierAccuracy(Classifier classifier, Instances instances) throws Exception{
         /* Find probablitity thatpredicted value is same as actual value - so numRight/totalNum */
         double numberCorrect = 0;
         double totalNumber = instances.numInstances();
@@ -412,7 +413,7 @@ public class Helpers {
         return numberCorrect/totalNumber;
     }
     
-    private static double findClassifierAccuracy(Classifier classifier, Instance instance) throws Exception{
+    public static double findClassifierAccuracy(Classifier classifier, Instance instance) throws Exception{
         
         double result = 0;
 
