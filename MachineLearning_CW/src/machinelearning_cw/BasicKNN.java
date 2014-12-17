@@ -3,14 +3,9 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-
 package machinelearning_cw;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Random;
 import weka.classifiers.Classifier;
@@ -35,7 +30,8 @@ public class BasicKNN implements Classifier{
     @Override
     public double classifyInstance(Instance instance) throws Exception {
         /* Calculate euclidean distances */
-        double[] distances = Helpers.findEuclideanDistances(trainingData, instance);
+        double[] distances = Helpers.findEuclideanDistances(
+                trainingData, instance);
         
         /* 
          * Create a list of dictionaries where each dictionary contains
@@ -43,20 +39,9 @@ public class BasicKNN implements Classifier{
          * The distance key stores the euclidean distance for an instance and 
          * the id key stores the hashcode for that instance object.
          */
-        ArrayList<HashMap<String, Object>> table = Helpers.buildDistanceTable(trainingData, distances);
+        ArrayList<HashMap<String, Object>> table = Helpers.buildDistanceTable(
+                trainingData, distances);
 
-        /*
-        this.sortDistanceTable(table, "distance");
-        for(int i = 0; i < distances.length; i++){
-            HashMap<String, Object> row = table.get(i);
-            Instance inst = trainingData.get(i);
-            System.out.println(row.get("distance"));
-        }
-        System.out.println("");
-        */
-        
-        
-        //k=5;
         /* Find the k smallest distances */
         Object[] kClosestRows = new Object[k];
         Object[] kClosestInstances = new Object[k];
@@ -76,11 +61,12 @@ public class BasicKNN implements Classifier{
 
                 /* Break ties (by choosing winner at random) */
                 Random rand = new Random();
-                int matchingNeighbourPosition = tieIndices.get(rand.nextInt(tieIndices.size()));
-                HashMap<String, Object> matchingRow = table.get(matchingNeighbourPosition);
+                int matchingNeighbourPosition = tieIndices.get(
+                        rand.nextInt(tieIndices.size()));
+                HashMap<String, Object> matchingRow = table.get(
+                        matchingNeighbourPosition);
                 kClosestRows[i - 1] = matchingRow;
             }
-
         }
 
         /* 
@@ -91,36 +77,22 @@ public class BasicKNN implements Classifier{
             /* Build up closestInstances array */
             for(int j = 0; j < trainingData.numInstances(); j++){
                 Instance inst = trainingData.get(j);
-                HashMap<String, Object> row = (HashMap<String, Object>)kClosestRows[i];
+                HashMap<String, Object> row = (HashMap<String, Object>)
+                        kClosestRows[i];
                 if(Integer.toHexString(inst.hashCode()).equals(row.get("id"))){
                     kClosestInstances[i] = inst;
-                    //System.out.println("MATCH" + inst + " " + row.get("distance"));
                 }
             }
             
             /* Keep track of the class values of the closest instanes */
             Instance inst = (Instance) kClosestInstances[i];
             classValues[i] = inst.classValue();
-            //System.out.println(inst + "  " +inst.classValue());
         }
         
         /* Return the most frequently occuring closest class */
-        ArrayList cardsList = new ArrayList(Arrays.asList(classValues));
-        //System.out.println(this.mode(this.arrayToArrayList(classValues)));
-        //System.out.println(this.mode(Arrays.asList(classValues)));
         return Helpers.mode(Helpers.arrayToArrayList(classValues));
     }
-    
-    @Override
-    public double[] distributionForInstance(Instance instance) throws Exception {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-    }
-
-    @Override
-    public Capabilities getCapabilities() {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-    }
-    
+       
     public void setK(int k){
         if(k <= 0 && k >= trainingData.numInstances()){
             throw new IllegalArgumentException("k Must be an integer value "
@@ -130,15 +102,15 @@ public class BasicKNN implements Classifier{
             this.k = k;
         }
     }
-    
-    
-    /************************ HELPER METHODS **************************/
-    
-    
-    
-    
-    
-    
 
-    
+    @Override
+    public double[] distributionForInstance(Instance instance) 
+            throws Exception {
+        throw new UnsupportedOperationException("Not supported yet."); 
+    }
+
+    @Override
+    public Capabilities getCapabilities() {
+        throw new UnsupportedOperationException("Not supported yet.");
+    }
 }

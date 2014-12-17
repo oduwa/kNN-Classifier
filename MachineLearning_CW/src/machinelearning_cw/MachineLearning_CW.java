@@ -9,9 +9,13 @@ package machinelearning_cw;
 import java.util.ArrayList;
 import java.util.Random;
 import weka.classifiers.Classifier;
+import weka.classifiers.bayes.NaiveBayes;
+import weka.classifiers.functions.SMO;
 import weka.classifiers.lazy.IBk;
+import weka.classifiers.trees.J48;
 import weka.core.Instance;
 import weka.core.Instances;
+import weka.core.Utils;
 
 /**
  *
@@ -25,13 +29,14 @@ public class MachineLearning_CW {
     public static void main(String[] args) throws Exception {
         // TODO code application logic here
         
+        /* Initializing test datasets */
         ArrayList<Instances> trainData = new ArrayList<Instances>();
         ArrayList<Instances> testData = new ArrayList<Instances>();
         
         Instances train = WekaLoader.loadData("PitcherTrain.arff");
         Instances test = WekaLoader.loadData("PitcherTest.arff");
-        //trainData.add(train);
-        //testData.add(test);
+        trainData.add(train);
+        testData.add(test);
         
         Instances bananaTrain = WekaLoader.loadData("banana-train.arff");
         Instances bananaTest = WekaLoader.loadData("banana-test.arff");
@@ -55,7 +60,7 @@ public class MachineLearning_CW {
         testData.add(habermanTest);
         
         
-        // >2 dimensional data sets
+        // >3 dimensional data sets
         Instances thyroidTrain = WekaLoader.loadData("thyroid-train.arff");
         Instances thyroidTest = WekaLoader.loadData("thyroid-test.arff");
         trainData.add(thyroidTrain);
@@ -87,66 +92,43 @@ public class MachineLearning_CW {
         testData.add(yeastTest);
         
         
-        /*
-        for(Instance inst : cloudTrain){
-            if(inst.classValue() == 1){
-                System.out.println(inst.value(1));
-            }  
-        }
-        */
-        
-        /*
+        /* Test to see that BasicKNN provides the same results obtained from
+         * the hand exercise.
+         */
+        System.out.println("Test to see that BasicKNN provides the same"
+                + " results obtained from the hand exercise:");
+        System.out.println("(Ties are settled randomly)");
         BasicKNN basicKNN = new BasicKNN();
         basicKNN.buildClassifier(train);
-        basicKNN.classifyInstance(test.firstInstance());
-         */
+        for(int i = 0; i < test.size(); i++){
+            Instance inst = test.get(i);
+            System.out.println(i+1 + ": " + basicKNN.classifyInstance(inst));
+        }
         
         
-        //System.out.println(train + "\n\n\n");
-        //KNN knn = new KNN();
-        //knn.setUseStandardisedAttributes(false);
-        //knn.setAutoDetermineK(true);
-        //knn.setUseWeightedVoting(true);
-        //knn.setUseAcceleratedNNSearch(true);
-        //knn.buildClassifier(train);
-        //knn.testEstimateK();
-        //System.out.println("DECISION: " + knn.classifyInstance(test.get(0)));
-        //*/
-        //System.out.println(knn.findNClosestNeighbourWithOrchards(test.get(0), train, 3));
-        
-        //System.out.println(knn.orchardsAlgorithm(test.get(1), train));;
-        
-        
-        //IBk wekaKNN = new IBk(); wekaKNN.buildClassifier(bananaTrain);
+        /* Initializing alternative classifiers */
+        IBk wekaKNN = new IBk();
+        NaiveBayes naiveBayes = new NaiveBayes();
+        J48 decisionTree = new J48();
+        SMO svm = new SMO();
+
+        /* Tests for experiments 1,2 & 3 */
         KNN myKNN = new KNN(); 
-        //myKNN.setUseStandardisedAttributes(true);
-        //myKNN.setAutoDetermineK(false);
-        myKNN.setAutoDetermineK(true);
-        //myKNN.setUseWeightedVoting(true);
-        //MachineLearning_CW.performClassifierAccuracyTests(myKNN, trainData, testData, 1);
-        System.out.println(trainData.get(4).size());
-        myKNN.buildClassifier(trainData.get(4));
-        System.out.println(Helpers.findClassifierAccuracy(myKNN, testData.get(4)));
+        myKNN.setUseStandardisedAttributes(true);
+        myKNN.setAutoDetermineK(false);
+        myKNN.setUseWeightedVoting(true);
+        myKNN.buildClassifier(train);
+        //myKNN.setUseAcceleratedNNSearch(true);
+        System.out.println("\nAccuracy Experiments:");
+        MachineLearning_CW.performClassifierAccuracyTests(
+                myKNN, trainData, testData, 1);
         
-        
-        
-        //0.8687040181097906, 0.8670062252405206
-        //myKNN.setUseStandardisedAttributes(true);//myKNN.setUseWeightedVoting(true);//myKNN.setAutoDetermineK(true);myKNN.setUseAcceleratedNNSearch(true);
-//        myKNN.buildClassifier(train);knn.buildClassifier(train);
-//        int i = 0;
-//        for(Instance inst : test){
-//            //System.out.println("WEKA: " + wekaKNN.classifyInstance(inst) + " ME: " + myKNN.classifyInstance(inst));
-//            double wekaAnswer = wekaKNN.classifyInstance(inst);
-//            double myAnswer = myKNN.classifyInstance(inst);
-//            if(wekaAnswer != myAnswer){
-//                System.out.println("THERES A MISMATCH AT INDEX " + i);
-//                System.out.println("WEKA: " + wekaAnswer + " ME: " + myAnswer);
-//                System.out.println("VERDICT: " + inst.classValue());
-//            }
-//            i++;
-//        }
-        //1070
+        /* Timing tests */
+        System.out.println("\n\nTiming Experiments:");
+        MachineLearning_CW.performClassifierTimingTests(
+                wekaKNN, trainData, testData);
     }
+    
     
     /**
      * 
@@ -161,7 +143,9 @@ public class MachineLearning_CW {
      * @param t The number of times the data should be sampled
      * @throws Exception 
      */
-    public static void performClassifierAccuracyTests(Classifier classifier, ArrayList<Instances> trainingDatasets, ArrayList<Instances> testDatasets, int t) throws Exception{
+    public static void performClassifierAccuracyTests(Classifier classifier,
+            ArrayList<Instances> trainingDatasets, ArrayList<Instances> 
+                    testDatasets, int t) throws Exception{
         ArrayList<Double> accuracies = new ArrayList<Double>(); 
         Random randomGenerator = new Random();
         
@@ -181,7 +165,8 @@ public class MachineLearning_CW {
                  */
                 int n = mergedDataSet.size() / 2;
                 for (int k = 0; k < n; k++) {
-                    int indexToRemove = randomGenerator.nextInt(mergedDataSet.size());
+                    int indexToRemove = randomGenerator.nextInt(
+                            mergedDataSet.size());
                     train.add(mergedDataSet.remove(indexToRemove));
                 }
             
@@ -196,42 +181,119 @@ public class MachineLearning_CW {
                 /* Measure and record the accuracy of the classifier on
                  * the test set
                  */
-                double accuracy = Helpers.findClassifierAccuracy(classifier, test);
+                double accuracy = Helpers.findClassifierAccuracy(classifier,
+                                    test);
                 accuracies.add(accuracy);
             }
   
             double accuracyAverage = average(accuracies);
             System.out.println(accuracyAverage);
-            
         }
         
+    }
+    
+    
+    /**
+     * 
+     * Tests the time taken for a given classifier to work against different 
+     * sizes of data.
+     * 
+     * Prints the time taken for different values of n and the values of n
+     * where n is the size of data worked on.
+     * 
+     * @param classifier The classifier to test
+     * @param trainingDatasets A collection of all training datasets.
+     * @param testDatasets A collection of all test datasets.
+     * @throws Exception 
+     */
+    public static void performClassifierTimingTests(Classifier classifier,
+            ArrayList<Instances> trainingDatasets,
+            ArrayList<Instances> testDatasets) throws Exception{
+        /*
+         * Take the single largest data set and set up a timing experiment
+         * for each classifier 
+         */
+        int largestIndex = 0;
+        int greatestSoFar = trainingDatasets.get(0).size();
+        for(int i = 0; i < trainingDatasets.size(); i++){
+            if(trainingDatasets.get(i).size() > greatestSoFar){
+                greatestSoFar = trainingDatasets.get(i).size();
+                largestIndex = i;
+            }
+        }
+
+        /*
+         * Time classifier for different train set sizes with fixed 
+         * test set size
+         */
+        int cap = 0;
+        for(int n = 100; n < trainingDatasets.get(largestIndex).size(); n+=300){ 
+            Instances timeTrain = new Instances(
+                    trainingDatasets.get(largestIndex), 0, n);
+            Instances timeTest = testDatasets.get(largestIndex);
+            MachineLearning_CW.timeClassifier(
+                    classifier, timeTrain, timeTest, 100);
+            cap = n;
+            
+            /* Run the experiment for n = 100 twice, to offset the effects of
+             * the Java Garbage Collector and caching.
+             */
+            if(n == 100){
+                MachineLearning_CW.timeClassifier(
+                        classifier, timeTrain, timeTest, 100);
+            }
+        }
+        
+        System.out.println("FOR n = 100 : INCREMENT BY 300 : CAP AT " + cap);
     }
     
     /**
      * 
-     * Tests the speed of a classifier. This is achieved by checking the time
-     * taken for the given classifier to classify some given data.
+     * Tests the speed of a classifier in milliseconds and prints it. 
+     * This is achieved by checking the time taken for the given classifier to
+     * classify some given data.
+     * 
      * 
      * @param classifier The classifier to be tested.
      * @param train The data with which to train the classifier.
      * @param test The data the classifier is to be tested against.
+     * @param t The number of times the test should be carried out and averaged.
      * @throws Exception 
      */
-    public static void performClassifierTimingTests(Classifier classifier, Instances train, Instances test) throws Exception{
-        // Time the build and classifyInstance methods
-        long t1 = System.nanoTime();
+    public static void timeClassifier(Classifier classifier, Instances train,
+            Instances test, int t) throws Exception{
         
-        classifier.buildClassifier(train);
-        for(Instance eachInstance : test){
-            classifier.classifyInstance(eachInstance);
+        ArrayList<Double> times = new ArrayList<Double>(); 
+        
+        /* Carry out test t+1 times and average.
+         * The first run is ignored to offset the effects of
+         * the Java Garbage Collector and caching.
+         */
+        for (int i = 0; i < t+1; i++) {
+            // Time the build and classifyInstance methods
+            double t1 = System.nanoTime();
+
+            classifier.buildClassifier(train);
+            for (Instance eachInstance : test) {
+                classifier.classifyInstance(eachInstance);
+            }
+
+            double t2 = System.nanoTime() - t1;
+
+            // Convert to ms
+            double timeTaken = t2 / 1000000.0;
+            
+            if(i != 0){
+                times.add(timeTaken);
+            }  
         }
-        
-        long t2 = System.nanoTime() - t1;
-        
-        System.out.println(t2);   
+
+        double averageTime = average(times);
+        System.out.println(averageTime);   
     }
     
-    public static Instances mergeDataSets(Instances datasetA, Instances datasetB){
+    public static Instances mergeDataSets(Instances datasetA, 
+            Instances datasetB){
         Instances mergedDataSet = new Instances(datasetA);
         
         for(Instance inst : datasetB){

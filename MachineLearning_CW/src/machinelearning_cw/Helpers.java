@@ -35,7 +35,8 @@ public class Helpers {
      * array corresponds to the distance of the "instance" param from the
      * training data at that same position.
      */
-    public static double[] findEuclideanDistances(Instances data, Instance instance){
+    public static double[] findEuclideanDistances(Instances data,
+            Instance instance){
         /* Initialise array to hold euclidean distances */
         double[] distances = new double[data.numInstances()];
         
@@ -75,15 +76,18 @@ public class Helpers {
      * "distance" stores the distance from the training data instance.
      * 
      * @param data The collection of training data instances.
-     * @param distances An array of distances where the value at each position in the
-     * array corresponds to the distance from the training data at that position
+     * @param distances An array of distances where the value at each position 
+     * in the array corresponds to the distance from the training data at 
+     * that position.
      * @return an ArrayList whose elements are 
      * HashMap objects. Each item in the array list represents a row in the
      * table and each key-value pair in the HashMap represents a column
      */
-    public static ArrayList<HashMap<String, Object>> buildDistanceTable(Instances data, double[] distances){
+    public static ArrayList<HashMap<String, Object>> buildDistanceTable(
+            Instances data, double[] distances){
         /* Initialise table */
-        ArrayList<HashMap<String, Object>> table = new ArrayList<HashMap<String, Object>>();
+        ArrayList<HashMap<String, Object>> table = 
+                new ArrayList<HashMap<String, Object>>();
         
         /* Populate table */
         int i = 0;
@@ -112,18 +116,21 @@ public class Helpers {
      * "distance" or "weight"
      * 
      */
-    public static void sortDistanceTable(ArrayList<HashMap<String, Object>> table, String sortParam){
+    public static void sortDistanceTable(
+            ArrayList<HashMap<String, Object>> table, String sortParam){
         
         if(sortParam.equalsIgnoreCase("distance")){
             /* Sort hash map in ascending using anonymous comparator */
             Collections.sort(table, new Comparator<HashMap<String, Object>>(){
 
             @Override
-            public int compare(HashMap<String, Object> o1, HashMap<String, Object> o2) {
+            public int compare(HashMap<String, Object> o1,
+                    HashMap<String, Object> o2) {
                 if((Double) o1.get("distance") > (Double) o2.get("distance")){
                     return 1;
                 }
-                else if((Double)o1.get("distance") < (Double)o2.get("distance")){
+                else if((Double)o1.get("distance") < 
+                        (Double)o2.get("distance")){
                     return -1;
                 }
                 else{
@@ -138,7 +145,8 @@ public class Helpers {
             Collections.sort(table, new Comparator<HashMap<String, Object>>(){
 
             @Override
-            public int compare(HashMap<String, Object> o1, HashMap<String, Object> o2) {
+            public int compare(HashMap<String, Object> o1, 
+                    HashMap<String, Object> o2) {
                 if((Double) o1.get("weight") < (Double) o2.get("weight")){
                     return 1;
                 }
@@ -171,7 +179,8 @@ public class Helpers {
      * distances in the table. (The array has a length greater than 1 when
      * there exist ties in the distances in the table)
      */
-    public static int[] findNthClosestNeighbour(ArrayList<HashMap<String, Object>> table, int n){
+    public static int[] findNthClosestNeighbour(
+            ArrayList<HashMap<String, Object>> table, int n){
         int[] result = null;
         sortDistanceTable(table, "distance");
         int count = 0;
@@ -288,7 +297,20 @@ public class Helpers {
         return list;
     }
 
-    public static double[] meanAndStandardDeviation(Instances data, int attributeIndex){
+    
+    /**
+     * Calculates the mean value and standard deviation for a given attribute
+     * within a given dataset.
+     * 
+     * @param data The data whose mean and standard deviation is to be found.
+     * @param attributeIndex The index of the attribute whose mean and 
+     * standard deviation is to be found.
+     * 
+     * @return  an array of size 2 where the first index contains the mean
+     * and the second index contains the standard deviation.
+     */
+    public static double[] meanAndStandardDeviation(Instances data,
+            int attributeIndex){
         double sum = 0, s = 0;
         double reps = data.numInstances();
         double sumSquared = 0;
@@ -307,98 +329,22 @@ public class Helpers {
         return result;
     }
     
-    public static double estimateAccuracyByThreeFoldCV(int k, Instances trainingData) throws Exception{
-        ArrayList<Double> accuracies = new ArrayList<Double>();
-        
-        /* Partition data into s almost equal subsets. for now let s be 3 */
-        int s = 3;
-        int n = trainingData.size();
-        ArrayList<Instances> partitions = new ArrayList<Instances>();
-        for(int i = 1; i <= s; i++){
-            if(i != s){
-                int start = (n / s) * (i - 1);
-                int stop = (n / s) * (i);
-                Instances partition = new Instances(trainingData, start, n/s);
-                partitions.add(partition);
-            }
-            else{
-                int partitionedSoFar = (n/s)*(s-1);
-                int remainder = n - partitionedSoFar;
-                int start = (n / s) * (i - 1);
-                Instances partition = new Instances(trainingData, start, remainder);
-                partitions.add(partition);
-            } 
-        }
 
-        /* train s classifiers and test subset i on the ith partition */
-        for(int i = 0; i < s; i++){
-            BasicKNN classifier = new BasicKNN();
-            Instances trainingInstances = null;
-            Instances testInstances = partitions.get(i);
-            
-            // build training data from training partitions
-            for(int j = 0; j < s; j++){
-                if(j != i){
-                    if(trainingInstances == null){
-                        trainingInstances = new Instances(partitions.get(j));
-                    }
-                    else{
-                        trainingInstances.addAll(partitions.get(j));
-                    }
-                }
-            }
-            classifier.setK(k);
-            classifier.buildClassifier(trainingInstances);
-            
-            /* test classifer on the one testing partition */
-            double accuracy = findClassifierAccuracy(classifier, testInstances); 
-            accuracies.add(accuracy);
-        }
-        
-        /* find average accuracy */
-        double count = accuracies.size();
-        double sum = 0;
-        for(Double eachAccuracy : accuracies){
-            sum += eachAccuracy;
-        }
-        double averageAccuracy = sum/count;
-        
-        return averageAccuracy;
-    }
-    
-    public static double estimateAccuracyByLOOCV_OLD(int k, Instances trainingData) throws Exception{
-        ArrayList<Double> accuracies = new ArrayList<Double>();
-
-        /* In a training set of n, train the model on n-1 and test on 1 */
-        int n = trainingData.size();
-        for(int i = 0; i < n; i++){
-            Instances trainingSet = new Instances(trainingData);
-            Instance testInstance = trainingSet.remove(i);
-            
-            BasicKNN classifier = new BasicKNN();
-            classifier.setK(k);
-            classifier.buildClassifier(trainingSet);
-            
-            /* Test classifer on test instance and measure accuracy */
-            double accuracy = Helpers.findClassifierAccuracy(classifier, testInstance); 
-            accuracies.add(accuracy);
-        }
-        
-        /* find average accuracy */
-        double count = accuracies.size();
-        double sum = 0;
-        for(Double eachAccuracy : accuracies){
-            sum += eachAccuracy;
-        }
-        double averageAccuracy = sum/count;
-        return averageAccuracy;
-    }
-    
-    
-    
-    
-    public static double findClassifierAccuracy(Classifier classifier, Instances instances) throws Exception{
-        /* Find probablitity thatpredicted value is same as actual value - so numRight/totalNum */
+    /**
+     * 
+     * Calculates the accuracy of a given classifier over a given dataset.
+     * 
+     * @param classifier The classifier to be tested.
+     * @param instances The data the classifier is to be tested against.
+     * 
+     * @return The accuracy of the classifier.
+     * @throws Exception 
+     */
+    public static double findClassifierAccuracy(Classifier classifier, 
+            Instances instances) throws Exception{
+        /* Find probablitity that predicted value is same as actual value
+         * - that is, numRight/totalNum 
+         */
         double numberCorrect = 0;
         double totalNumber = instances.numInstances();
         
@@ -413,7 +359,19 @@ public class Helpers {
         return numberCorrect/totalNumber;
     }
     
-    public static double findClassifierAccuracy(Classifier classifier, Instance instance) throws Exception{
+    
+    /**
+     * 
+     * Calculates the accuracy of a given classifier for a single instance.
+     * 
+     * @param classifier The classifier to be tested.
+     * @param instance The data the classifier is to be tested against.
+     * 
+     * @return The accuracy of the classifier as either 1 or 0.
+     * @throws Exception 
+     */
+    public static double findClassifierAccuracy(Classifier classifier,
+            Instance instance) throws Exception{
         
         double result = 0;
 
